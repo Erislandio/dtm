@@ -1,11 +1,127 @@
 <script>
-  (function() {
-    var appId = "{{settings.gtmId}}";
-    if (!appId) {
-      console.error('Warning: No APP NAME ID is defined. Please configure it in the apps admin.');
-      return
-    }
+  // @name         Samsung DTM Injection
+  // @namespace    http://www.samsung.com/br/
+  // @version      0.1
+  // @description  Loads the DTM script, the data layer and injects classes to the elements necessary to track the website
+  // @author       Rafael Milléo <rafael.mc@samsung.com>
+  // @match        https://samsungbr.myvtex.com/*
+  // @grant        none
 
-    // Add script here
-  })()
+  var setElementOmni = function(elem, className, attrs) {
+    elem.classList.add(className);
+    Object.keys(attrs).forEach(function(attr) {
+      var attrName = "data-omni";
+      var value = attrs[attr];
+      if (attr != "") attrName += "-" + attr;
+      elem.setAttribute(attrName, value);
+    });
+  };
+
+  var inspectElement = function(node) {
+    if (node == undefined || node.className == undefined) return;
+
+    var bodyClass = document.querySelector("body").className.split(" ");
+    var classes = node.className.split(" ");
+
+    if (bodyClass.indexOf("body-cart") > -1) {
+      /* Cart Page */
+      var quantities = node.querySelectorAll("tr.product-item td.quantity");
+      if (quantities != null) {
+        quantities.forEach(cell => {
+          var addItemButton = cell.querySelector(
+            "a.item-quantity-change.item-quantity-change-increment"
+          );
+          setElementOmni(addItemButton, "data-omni-addtocart", {
+            base: "<PRODUCT BASE NAME>",
+            variant: "<PRODUCT CODE>"
+          });
+        });
+      }
+
+      var proceedCheckoutBtn = node.querySelector("#cart-to-orderform");
+      if (proceedCheckoutBtn != null) {
+        setElementOmni(addItemButton, "data-omni-proceedtocheckout", {
+          "": "cart proceed to checkout"
+        });
+      }
+    } else {
+      /* Product Card */
+      if (classes.indexOf("acupula-samsung-store-0-x-productCard") > -1) {
+        var buyNowButton = node.querySelector("button.vtex-button");
+        setElementOmni(buyNowButton, "data-omni-buynow", {
+          base: "<PRODUCT BASE NAME>",
+          variant: "<PRODUCT CODE>"
+        });
+
+        return;
+      }
+
+      if (
+        node.querySelector(".acupula-samsung-store-0-x-productTipBar") != null
+      ) {
+        var buyNowProductTipButton = node.querySelector(
+          ".acupula-samsung-store-0-x-ProductTipBarButton button.vtex-button"
+        );
+        setElementOmni(buyNowProductTipButton, "data-omni-buynow", {
+          base: "<PRODUCT BASE NAME>",
+          variant: "<PRODUCT CODE>"
+        });
+
+        var buyNowProductButton = node.querySelector(
+          ".acupula-samsung-store-0-x-ProductBuyButton button.vtex-button"
+        );
+        setElementOmni(buyNowProductButton, "data-omni-buynow", {
+          base: "<PRODUCT BASE NAME>",
+          variant: "<PRODUCT CODE>"
+        });
+
+        return;
+      }
+
+      /* Mini Cart */
+      if (node.querySelector(".vtex-minicart-2-x-box") != null) {
+        var goToCartButton = node.querySelector(
+          ".vtex-minicart-2-x-box .vtex-minicart-2-x-contentFooter button.vtex-button"
+        );
+        if (goToCartButton != null) {
+          setElementOmni(goToCartButton, "data-omni-cartview", {
+            "": "mini cart",
+            base: "<PRODUCT BASE NAME>",
+            variant: "<PRODUCT CODE>"
+          });
+        }
+
+        var addToCartBtns = node.querySelectorAll(
+          ".vtex-product-summary-2-x-quantityStepperContainer button[aria-label='+']"
+        );
+        if (addToCartBtns.length > 0) {
+          addToCartBtns.forEach(function(addCart) {
+            setElementOmni(addCart, "data-omni-addtocart", {
+              "": "mini cart",
+              base: "<PRODUCT BASE NAME>",
+              variant: "<PRODUCT CODE>"
+            });
+          });
+        }
+
+        return;
+      }
+    }
+  };
+
+  var observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      if (mutation.addedNodes.length) {
+        mutation.addedNodes.forEach(node => inspectElement(node));
+      }
+    });
+  });
+
+  observer.observe(document.querySelector("body"), {
+    childList: true,
+    subtree: true
+  });
+
+  /* Static elements of site */
+  window.onload = function() {};
 </script>
