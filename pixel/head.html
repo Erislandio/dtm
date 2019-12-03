@@ -20,7 +20,7 @@
   var inspectElement = function(node) {
     if (node == undefined || node.className == undefined) return;
 
-    var bodyClass = document.querySelector("body").className.split(" ");
+    var bodyClass = document.querySelector("body") && document.querySelector("body").className.split(" ");
     var classes = node.className.split(" ");
 
     if (bodyClass.indexOf("body-cart") > -1) {
@@ -117,11 +117,9 @@
     });
   });
 
-  observer.observe(document.querySelector("body"), {
+  observer.observe(document.querySelector("html"), {
     childList: true,
     subtree: true
   });
 
-  /* Static elements of site */
-  window.onload = function() {};
 </script>
