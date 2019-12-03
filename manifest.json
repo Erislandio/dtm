@@ -1,7 +1,7 @@
 {
   "name": "samsung-dtm-injection",
   "vendor": "acupula",
-  "version": "0.0.1",
+  "version": "0.0.2-beta.0",
   "title": "Samsung DTM injection",
   "description": "Samsung Dtm injection",
   "billingOptions": {
