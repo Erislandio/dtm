@@ -1,183 +1,214 @@
-<script>
-  // ==UserScript==
-// @name         Samsung DTM Injection
-// @namespace    http://www.samsung.com/br/
-// @version      0.1
-// @description  Loads the DTM script, the data layer and injects classes to the elements necessary to track the website
-// @author       Rafael Milléo <rafael.mc@samsung.com>
-// @grant        none
-// ==/UserScript==
+<script>// ==UserScript==
+    // @name         Samsung DTM Injection
+    // @namespace    http://www.samsung.com/br/
+    // @version      0.1
+    // @description  Loads the DTM script, the data layer and injects classes to the elements necessary to track the website
+    // @author       Rafael Milléo <rafael.mc@samsung.com>
+    // @match        https://samsungbr.myvtex.com/*
+    // @grant        none
+    // ==/UserScript==
 
-function SsgDtmInjection(){
-    var self = this;
+    function SsgDtmInjection() {
+        var self = this;
 
-    /* List of pages where the DTM transformation is enabled */
-    self.dtmWatchPages = {
-        "home": "render-route-store-home",
-        "checkout": "checkout-header",
-        "product": "render-route-store-product",
-        "search": "render-route-store-search"
-    };
-    self.pageType = false;
-    self.observer = null;
+        /* List of pages where the DTM transformation is enabled */
+        self.dtmWatchPages = {
+            "home": "render-route-store-home",
+            "checkout": "checkout-header",
+            "product": "render-route-store-product",
+            "search": "render-route-store-search",
+            "category": "render-route-store-search-category"
+        };
+        self.pageType = false;
+        self.observer = null;
+        self.pageInterval = null;
 
-    self.init = function(){
-        self.getPageType();
+        self.init = function () {
+            self.getPageType();
 
-        if(self.pageType == false) return;
+            if (self.pageType == false) return;
 
-        console.log("PAGE IS CONNECTED TO DTM");
+            console.log("PAGE IS CONNECTED TO DTM");
 
-        if(self.observer == null){
-            self.observer = new MutationObserver(function(mutations){
-                mutations.forEach(function(mutation){
-                    if(mutation.target.className == "render-provider"){
-                        self.pageType = false;
-                        self.init();
-                        return;
-                    }
-                    if(mutation.addedNodes.length){
-                        mutation.addedNodes.forEach((node) => self.inspectElement(node, self.pageType));
-                    }
+            if (self.observer == null) {
+                self.observer = new MutationObserver(function (mutations) {
+                    mutations.forEach(function (mutation) {
+                        if (mutation.target.className == "render-provider") {
+                            var newPageType = self.getPageType();
+                            if (newPageType != self.pageType) {
+                                self.pageType = false;
+                                self.init();
+                                return;
+                            }
+                        }
+                        if (mutation.addedNodes.length) {
+                            mutation.addedNodes.forEach((node) => self.inspectElement(node, self.pageType));
+                        }
+                    });
                 });
-            });
 
-            self.observer.observe(document.querySelector("body"), { childList: true, subtree: true });
-            self.injectScripts();
+                self.observer.observe(document.querySelector("html"), { childList: true, subtree: true });
+                self.injectScripts();
+            }
         }
-    }
 
-    self.getPageType = function(){
-        var rootDivs = document.querySelectorAll("body > div");
-        for(var i =0; i < rootDivs.length; i++){
-            Object.keys(self.dtmWatchPages).map(function(page){
-                var pageClass = self.dtmWatchPages[page];
-                if(rootDivs[i].className.indexOf(pageClass) > -1){
-                    self.pageType = page;
-                    return;
+        self.getPageType = function () {
+            if (self.pageInterval != null) return;
+
+            self.pageInterval = setInterval(function () {
+                if (document.body) {
+                    var rootDivs = document.querySelectorAll("body > div");
+                    for (var i = 0; i < rootDivs.length; i++) {
+                        Object.keys(self.dtmWatchPages).map(function (page) {
+                            var pageClass = self.dtmWatchPages[page];
+                            if (rootDivs[i].className.indexOf(pageClass) > -1) {
+                                self.pageType = page;
+                                self.init();
+                                return;
+                            }
+                        });
+                        if (self.pageType != false) break;
+                    }
                 }
-            });
-            if(self.pageType != false) break;
-        }
-    }
-
-    self.setElementOmni = function(elem, className, attrs){
-        if(NodeList.prototype.isPrototypeOf(elem)){
-            if(elem.length == 0) return;
-
-            elem.forEach(function(item){
-                self.setElementOmni(item, className, attrs);
-            });
-            return;
+            }, 500);
         }
 
-        elem.classList.add(className);
-        Object.keys(attrs).forEach(function(attr){
-            var attrName = "data-omni";
-            var value = attrs[attr];
-            if(attr != "") attrName += "-" + attr;
-            elem.setAttribute(attrName, value);
-        });
-    }
+        self.setElementOmni = function (elem, className, attrs) {
+            if (NodeList.prototype.isPrototypeOf(elem)) {
+                if (elem.length == 0) return;
 
-    self.inspectElement = function(node, pageType){
-        if(node == undefined || node.className == undefined) return;
-
-        var bodyClass = document.querySelector("body").className.split(" ");
-        var classes = (typeof node.className != "string")?"":node.className.split(" ");
-
-        self.minicart(classes, node);
-        switch(self.pageType){
-            case "home":
-                self.home(classes, node);
-                break;
-            case "checkout":
-                self.cart(classes, node);
-                break;
-            case "product":
-                self.product(classes, node);
-                break;
-        }
-        return;
-    }
-
-    self.product = function(classes, node){
-        if(node.querySelector(".acupula-samsung-store-0-x-productTipBar") != null){
-            var buyNowProductTipButton = node.querySelector(".acupula-samsung-store-0-x-ProductTipBarButton button.vtex-button");
-            self.setElementOmni(buyNowProductTipButton, "data-omni-buynow", { "base": "<PRODUCT BASE NAME>", "variant": "<PRODUCT CODE>" });
-
-            var buyNowProductButton = node.querySelector(".acupula-samsung-store-0-x-ProductBuyButton button.vtex-button");
-            self.setElementOmni(buyNowProductButton, "data-omni-buynow", { "base": "<PRODUCT BASE NAME>", "variant": "<PRODUCT CODE>" });
-
-            return;
-        }
-    }
-
-    self.home = function(classes, node){
-        /* Product Card */
-        if(classes.indexOf("vtex-shelf-1-x-container") > -1){
-            var buyNowButtons = node.querySelectorAll("button.vtex-button");
-            self.setElementOmni(buyNowButtons, "data-omni-buynow", { "base": "<PRODUCT BASE NAME>", "variant": "<PRODUCT CODE>" });
-
-            return;
-        }
-        if(classes.indexOf("acupula-samsung-store-0-x-productCard") > -1){
-            var buyNowButton = node.querySelector("button.vtex-button");
-            self.setElementOmni(buyNowButton, "data-omni-buynow", { "base": "<PRODUCT BASE NAME>", "variant": "<PRODUCT CODE>" });
-
-            return;
-        }
-    }
-
-    self.cart = function(classes, node){
-        var quantities = node.querySelectorAll("tr.product-item td.quantity");
-        if(quantities != null){
-            quantities.forEach((cell) => {
-                var addItemButton = cell.querySelector("a.item-quantity-change.item-quantity-change-increment");
-                self.setElementOmni(addItemButton, "data-omni-addtocart", { "base": "<PRODUCT BASE NAME>", "variant": "<PRODUCT CODE>" });
-            });
-        }
-
-        var proceedCheckoutBtn = node.querySelector("#cart-to-orderform");
-        if(proceedCheckoutBtn != null){
-            self.setElementOmni(addItemButton, "data-omni-proceedtocheckout", { "": "cart proceed to checkout" });
-        }
-    }
-
-    self.minicart = function(classes, node){
-        if(node.querySelector(".vtex-minicart-2-x-box") != null){
-            var goToCartButton = node.querySelector(".vtex-minicart-2-x-box .vtex-minicart-2-x-contentFooter button.vtex-button");
-            if(goToCartButton != null){
-                self.setElementOmni(goToCartButton, "data-omni-cartview", { "": "mini cart", "base": "<PRODUCT BASE NAME>", "variant": "<PRODUCT CODE>" });
+                elem.forEach(function (item) {
+                    self.setElementOmni(item, className, attrs);
+                });
+                return;
             }
 
-            var addToCartBtns = node.querySelectorAll(".vtex-product-summary-2-x-quantityStepperContainer button[aria-label='+']");
-            if(addToCartBtns.length > 0){
-                addToCartBtns.forEach(function(addCart){
-                    self.setElementOmni(addCart, "data-omni-addtocart", { "": "mini cart", "base": "<PRODUCT BASE NAME>", "variant": "<PRODUCT CODE>" });
+            elem.classList.add(className);
+            Object.keys(attrs).forEach(function (attr) {
+                var attrName = "data-omni";
+                var value = attrs[attr];
+                if (attr != "") attrName += "-" + attr;
+                if (value.indexOf("#") == 0) value = node.querySelector(value).innerText;
+                elem.setAttribute(attrName, value);
+            });
+        }
+
+        self.inspectElement = function (node, pageType) {
+            if (node == undefined || node.className == undefined) return;
+
+            var bodyClass = document.querySelector("body").className.split(" ");
+            var classes = (typeof node.className != "string") ? "" : node.className.split(" ");
+
+            self.minicart(classes, node);
+            switch (self.pageType) {
+                case "home":
+                    self.home(classes, node);
+                    break;
+                case "checkout":
+                    self.cart(classes, node);
+                    break;
+                case "product":
+                    self.product(classes, node);
+                    break;
+                case "category":
+                case "search":
+                    self.search(classes, node);
+                    break;
+            }
+            return;
+        }
+
+        self.product = function (classes, node) {
+            if (node.querySelector(".acupula-samsung-store-0-x-productTipBar") != null) {
+                var buyNowProductTipButton = node.querySelector(".acupula-samsung-store-0-x-ProductTipBarButton button.vtex-button");
+                self.setElementOmni(buyNowProductTipButton, "data-omni-buynow", { "base": "<PRODUCT BASE NAME>", "variant": "<PRODUCT CODE>" });
+
+                var buyNowProductButton = node.querySelector(".acupula-samsung-store-0-x-ProductBuyButton button.vtex-button");
+                self.setElementOmni(buyNowProductButton, "data-omni-buynow", { "base": "<PRODUCT BASE NAME>", "variant": "<PRODUCT CODE>" });
+
+                return;
+            }
+        }
+
+        self.home = function (classes, node) {
+            /* Product Card */
+            if (classes.indexOf("vtex-shelf-1-x-container") > -1) {
+                var buyNowButtons = node.querySelectorAll("button.vtex-button");
+                self.setElementOmni(buyNowButtons, "data-omni-buynow", { "base": "<PRODUCT BASE NAME>", "variant": "#ProductEan" });
+
+                return;
+            }
+            if (classes.indexOf("acupula-samsung-store-0-x-productCard") > -1 || node.className.indexOf("tc ba b--transparent hover-b--dark-gray pa4") > -1) {
+                var buyNowButton = node.querySelector("button.vtex-button");
+                self.setElementOmni(buyNowButton, "data-omni-buynow", { "base": "<PRODUCT BASE NAME>", "variant": node.querySelector("#ProductEan").innerText });
+
+                return;
+            }
+        }
+
+        self.cart = function (classes, node) {
+            var quantities = node.querySelectorAll("tr.product-item td.quantity");
+            if (quantities != null) {
+                quantities.forEach((cell) => {
+                    var addItemButton = cell.querySelector("a.item-quantity-change.item-quantity-change-increment");
+                    self.setElementOmni(addItemButton, "data-omni-addtocart", { "base": "<PRODUCT BASE NAME>", "variant": "<PRODUCT CODE>" });
                 });
             }
 
-            return;
+            var proceedCheckoutBtn = node.querySelector("#cart-to-orderform");
+            if (proceedCheckoutBtn != null) {
+                self.setElementOmni(proceedCheckoutBtn, "data-omni-proceedtocheckout", { "": "cart proceed to checkout" });
+            }
+        }
+
+        self.minicart = function (classes, node) {
+            if (node.querySelector(".vtex-minicart-2-x-box") != null) {
+                var goToCartButton = node.querySelector(".vtex-minicart-2-x-box .vtex-minicart-2-x-contentFooter button.vtex-button");
+                if (goToCartButton != null) {
+                    self.setElementOmni(goToCartButton, "data-omni-cartview", { "": "mini cart", "base": "<PRODUCT BASE NAME>", "variant": "<PRODUCT CODE>" });
+                }
+
+                var addToCartBtns = node.querySelectorAll(".vtex-product-summary-2-x-quantityStepperContainer button[aria-label='+']");
+                if (addToCartBtns.length > 0) {
+                    addToCartBtns.forEach(function (addCart) {
+                        self.setElementOmni(addCart, "data-omni-addtocart", { "": "mini cart", "base": "<PRODUCT BASE NAME>", "variant": "<PRODUCT CODE>" });
+                    });
+                }
+
+                return;
+            }
+        }
+
+        self.search = function (classes, node) {
+            if (classes.indexOf("acupula-samsung-store-0-x-productCard") > -1) {
+                var buyNowButton = node.querySelector("button.vtex-button");
+                self.setElementOmni(buyNowButton, "data-omni-buynow", { "base": "<PRODUCT BASE NAME>", "variant": node.querySelector("#ProductEan").innerText });
+
+                return;
+            }
+        }
+
+        self.injectScripts = function () {
+            var dataLayerScript = document.createElement("script");
+            dataLayerScript.type = "text/javascript";
+            dataLayerScript.innerText = `var siteCode="",pageURL="",digitalData={page:{pageInfo:{siteCode:"",siteSection:siteCode+":shop",pageName:"",pageURL:pageURL=window.location.href,pageTrack:""},pathIndicator:{depth_2:"",depth_3:"",depth_4:"",depth_5:""}},user:{loginStatus:""},product:{modelVariant:"",model_name:"",displayName:"",productDivision:"",productFamily:"",pimSubType:"",listPrice:""},orderdetails:{productsOrdered:"",modelVariant:"",deliveryOption:"",paymentMethod:"",orderId:"",productDivision:"",productFamily:"",pimSubType:"",displayName:"",addService:"",oldDevice:""}},depth=window.location.href.split("/").length,depth_last=window.location.href.split("/")[depth-1];""!==depth_last&&"?"!==depth_last.charAt(0)||(depth-=1),""===digitalData.page.pathIndicator.depth_2&&(depth>=5&&(digitalData.page.pathIndicator.depth_2=pageURL.split("/")[4]),depth>=6&&(digitalData.page.pathIndicator.depth_3=pageURL.split("/")[5]),depth>=7&&(digitalData.page.pathIndicator.depth_4=pageURL.split("/")[6]),depth>=8&&(digitalData.page.pathIndicator.depth_5=pageURL.split("/")[7]));var pageName=siteCode+":shop";""!=digitalData.page.pathIndicator.depth_2&&(pageName+=":"+digitalData.page.pathIndicator.depth_2),""!=digitalData.page.pathIndicator.depth_3&&(pageName+=":"+digitalData.page.pathIndicator.depth_3),""!=digitalData.page.pathIndicator.depth_4&&(pageName+=":"+digitalData.page.pathIndicator.depth_4),""!=digitalData.page.pathIndicator.depth_5&&(pageName+=":"+digitalData.page.pathIndicator.depth_5),digitalData.page.pageInfo.pageName=pageName;`;
+            document.head.appendChild(dataLayerScript);
+
+            var adobeDtmScript = document.createElement("script");
+            adobeDtmScript.type = "text/javascript";
+            adobeDtmScript.src = "//assets.adobedtm.com/94a07bb253a23a545fca071a500c666bbb8d4a94%2FsatelliteLib-3238ec89f936cea165cc88d83c1023ea55157d4f-staging.js";
+            document.head.appendChild(adobeDtmScript);
+
+            adobeDtmScript.onload = function () {
+                console.log("DTM script loaded");
+                var satelliteEnd = document.createElement("script");
+                satelliteEnd.innerText = "_satellite.pageBottom();";
+                satelliteEnd.type = "text/javascript";
+                document.body.appendChild(satelliteEnd);
+            }
         }
     }
 
-    self.injectScripts = function(){
-        var adobeDtmScript = document.createElement("script");
-        adobeDtmScript.type = "text/javascript";
-        adobeDtmScript.src = "//assets.adobedtm.com/94a07bb253a23a545fca071a500c666bbb8d4a94%2FsatelliteLib-3238ec89f936cea165cc88d83c1023ea55157d4f-staging.js";
-        document.head.appendChild(adobeDtmScript);
-        adobeDtmScript.onload = function() {
-            console.log("DTM script loaded");
-            var satelliteEnd = document.createElement("script");
-            satelliteEnd.innerText = "_satellite.pageBottom();";
-            satelliteEnd.type = "text/javascript";
-            document.body.appendChild(satelliteEnd);
-        }
-    }
-}
-
-var dtmInject = new SsgDtmInjection();
-dtmInject.init();
-
+    var dtmInject = new SsgDtmInjection();
+    dtmInject.init();
 </script>
